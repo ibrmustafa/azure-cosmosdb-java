@@ -93,7 +93,7 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
 
     private final CompletableFuture<RntbdContext> contextFuture = new CompletableFuture<>();
     private final CompletableFuture<RntbdContextRequest> contextRequestFuture = new CompletableFuture<>();
-    private final ConcurrentHashMap<UUID, RntbdRequestRecord> pendingRequests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, RntbdRequestRecord> pendingRequests = new ConcurrentHashMap<>();
 
     private boolean closingExceptionally = false;
     private ChannelHandlerContext context;
@@ -463,17 +463,17 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
         //  We currently fail when we find an existing request record.
         //  Links:https://github.com/Azure/azure-cosmosdb-java/issues/130
 
-        this.pendingRequest = this.pendingRequests.compute(requestRecord.getActivityId(), (activityId, current) -> {
+        this.pendingRequest = this.pendingRequests.compute(requestRecord.getTransportRequestId(), (requestId, current) -> {
 
             checkArgument(current == null, "current: expected no request record, not %s", current);
 
             final Timeout pendingRequestTimeout = requestRecord.newTimeout(timeout -> {
-                this.pendingRequests.remove(activityId);
+                this.pendingRequests.remove(requestId);
                 requestRecord.expire();
             });
 
             requestRecord.whenComplete((response, error) -> {
-                this.pendingRequests.remove(activityId);
+                this.pendingRequests.remove(requestId);
                 pendingRequestTimeout.cancel();
             });
 
@@ -599,11 +599,12 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
      */
     private void messageReceived(final ChannelHandlerContext context, final RntbdResponse response) {
 
+        final long transportRequestId = response.getTransportRequestId();
         final UUID activityId = response.getActivityId();
-        final RntbdRequestRecord pendingRequest = this.pendingRequests.get(activityId);
+        final RntbdRequestRecord pendingRequest = this.pendingRequests.get(transportRequestId);
 
         if (pendingRequest == null) {
-            logger.warn("[activityId: {}] no request pending", activityId);
+            logger.warn("[transportRequestId: {}, activityId: {}] no request pending", transportRequestId, activityId);
             return;
         }
 
@@ -725,9 +726,9 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
                     break;
             }
 
-            logger.trace("{}[activityId: {}, statusCode: {}, subStatusCode: {}] ",
-                context.channel(), cause.getActivityId(), cause.getStatusCode(), cause.getSubStatusCode(), cause
-            );
+            logger.trace("{}[transportRequestId: {}, activityId: {}, statusCode: {}, subStatusCode: {}] ",
+                context.channel(), transportRequestId, cause.getActivityId(), cause.getStatusCode(),
+                cause.getSubStatusCode(), cause);
 
             pendingRequest.completeExceptionally(cause);
         }

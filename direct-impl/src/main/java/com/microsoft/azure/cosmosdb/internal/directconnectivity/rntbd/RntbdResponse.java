@@ -108,6 +108,10 @@ public final class RntbdResponse implements ReferenceCounted {
         return this.frame.getStatus();
     }
 
+    public long getTransportRequestId() {
+        return this.getHeader(RntbdResponseHeader.TransportRequestID);
+    }
+
     static RntbdResponse decode(final ByteBuf in) {
 
         in.markReaderIndex();

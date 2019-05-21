@@ -70,6 +70,10 @@ public final class RntbdRequestRecord extends CompletableFuture<StoreResponse> {
         return this.args.getLifetime();
     }
 
+    public long getTransportRequestId() {
+        return this.args.getTransportRequestId();
+    }
+
     public void expire() {
         final RequestTimeoutException error = new RequestTimeoutException(
             String.format("Request timeout interval (%,d ms) elapsed",
