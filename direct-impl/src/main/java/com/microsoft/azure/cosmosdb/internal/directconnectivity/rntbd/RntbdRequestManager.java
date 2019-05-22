@@ -83,6 +83,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.microsoft.azure.cosmosdb.internal.HttpConstants.StatusCodes;
 import static com.microsoft.azure.cosmosdb.internal.HttpConstants.SubStatusCodes;
+import static com.microsoft.azure.cosmosdb.internal.directconnectivity.rntbd.RntbdReporter.reportIssue;
 import static com.microsoft.azure.cosmosdb.internal.directconnectivity.rntbd.RntbdReporter.reportIssueUnless;
 
 public final class RntbdRequestManager implements ChannelHandler, ChannelInboundHandler, ChannelOutboundHandler {
@@ -155,13 +156,16 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
     }
 
     @Override
-    public void channelRead(final ChannelHandlerContext context, final Object message) throws Exception {
+    public void channelRead(final ChannelHandlerContext context, final Object message) {
 
         this.traceOperation(context, "channelRead");
 
         if (message instanceof RntbdResponse) {
             try {
                 this.messageReceived(context, (RntbdResponse)message);
+            } catch (Throwable throwable) {
+                reportIssue(logger, context, "error encountered while processing response: ", throwable);
+                throw throwable;
             } finally {
                 ReferenceCountUtil.release(message);
             }
@@ -169,8 +173,12 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
             return;
         }
 
-        final String reason = Strings.lenientFormat("expected message of type %s, not %s", RntbdResponse.class, message.getClass());
-        throw new IllegalStateException(reason);
+        final String reason = Strings.lenientFormat("expected message of {}, not {}: {}",
+            RntbdResponse.class, message.getClass(), message
+        );
+
+        reportIssue(logger, context, reason);
+        throw new IllegalArgumentException(reason);
     }
 
     /**
@@ -726,7 +734,7 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
                     break;
             }
 
-            logger.trace("{}[transportRequestId: {}, activityId: {}, statusCode: {}, subStatusCode: {}] ",
+            logger.trace("\n  {}\n  [transportRequestId: {}, activityId: {}, statusCode: {}, subStatusCode: {}]\n  ",
                 context.channel(), transportRequestId, cause.getActivityId(), cause.getStatusCode(),
                 cause.getSubStatusCode(), cause);
 

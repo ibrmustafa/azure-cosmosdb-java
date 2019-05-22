@@ -58,7 +58,7 @@ public final class RntbdRequestEncoder extends MessageToByteEncoder {
      * @param out     the {@link ByteBuf} into which the encoded message will be written
      */
     @Override
-    protected void encode(final ChannelHandlerContext context, final Object message, final ByteBuf out) throws Exception {
+    protected void encode(final ChannelHandlerContext context, final Object message, final ByteBuf out) {
 
         final RntbdRequest request = RntbdRequest.from((RntbdRequestArgs)message);
         final int start = out.writerIndex();
