@@ -471,17 +471,17 @@ public final class RntbdRequestManager implements ChannelHandler, ChannelInbound
         //  We currently fail when we find an existing request record.
         //  Links:https://github.com/Azure/azure-cosmosdb-java/issues/130
 
-        this.pendingRequest = this.pendingRequests.compute(requestRecord.getTransportRequestId(), (requestId, current) -> {
+        this.pendingRequest = this.pendingRequests.compute(requestRecord.getTransportRequestId(), (id, current) -> {
 
-            checkArgument(current == null, "current: expected no request record, not %s", current);
+            reportIssueUnless(current == null, logger, requestRecord, "already defined: {}", current);
 
             final Timeout pendingRequestTimeout = requestRecord.newTimeout(timeout -> {
-                this.pendingRequests.remove(requestId);
+                this.pendingRequests.remove(id);
                 requestRecord.expire();
             });
 
             requestRecord.whenComplete((response, error) -> {
-                this.pendingRequests.remove(requestId);
+                this.pendingRequests.remove(id);
                 pendingRequestTimeout.cancel();
             });
 
